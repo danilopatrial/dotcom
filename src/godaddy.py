@@ -1,4 +1,3 @@
-
 import requests
 import typing
 import webbrowser
@@ -10,14 +9,18 @@ from . import utils as u
 # NOTE: Some of Godaddy's API services will work, until you own 10+ domains.
 
 
-godaddy_search_link = lambda domain: f"https://www.godaddy.com/pt-br/domainsearch/find?domainToCheck={domain}"
-godaddy_eval_link = lambda domain: f"https://br.godaddy.com/domain-value-appraisal/appraisal/?domainToCheck={domain}"
+godaddy_search_link = (
+    lambda domain: f"https://www.godaddy.com/pt-br/domainsearch/find?domainToCheck={domain}"
+)
+godaddy_eval_link = (
+    lambda domain: f"https://br.godaddy.com/domain-value-appraisal/appraisal/?domainToCheck={domain}"
+)
 
 
 def registered_domains() -> typing.Iterator[dict] | None:
     headers: dict = {
         "Authorization": f"sso-key {c.GODADDY_API_KEY}:{c.GODADDY_API_SECRET}",
-        "Accept": "application/json"
+        "Accept": "application/json",
     }
 
     OTEurl: str = "https://api.ote-godaddy.com/v1/domains"
@@ -34,7 +37,7 @@ def registered_domains() -> typing.Iterator[dict] | None:
         return {
             "error": True,
             "status_code": response.status_code,
-            "message": response.text
+            "message": response.text,
         }
 
 
@@ -44,7 +47,7 @@ def check_domain_availability(domaintld: str) -> dict | None:
 
     headers = {
         "Authorization": f"sso-key {c.OTE_GODADDY_API_KEY}:{c.OTE_GODADDY_API_SECRET}",
-        "Accept": "application/json"
+        "Accept": "application/json",
     }
 
     response = requests.get(OTEurl, headers=headers)
@@ -56,5 +59,5 @@ def check_domain_availability(domaintld: str) -> dict | None:
         return {
             "error": True,
             "status_code": response.status_code,
-            "message": response.text
+            "message": response.text,
         }

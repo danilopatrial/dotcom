@@ -4,6 +4,8 @@ import logging
 import os
 import pandas as pd
 import re
+import typing
+import sys
 
 from . import const as _c
 
@@ -61,7 +63,9 @@ def init_log_conf() -> None:
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
-    file_handler = logging.FileHandler("/home/apollo/Code/dotcom/log/main.log", mode="w")
+    file_handler = logging.FileHandler(
+        "/home/apollo/Code/dotcom/log/main.log", mode="w"
+    )
     file_handler.setLevel(_c.LOGLEVEL)
     file_handler.setFormatter(formatter)
     _c.LOGGER.addHandler(file_handler)
@@ -73,7 +77,9 @@ def format_response(response_dict: dict) -> str:
         return response_dict
 
     if response_dict.get("available", None) is not None:
-        response_dict["available_str"] = "AVAILABLE" if response_dict["available"] == True else "NOT AVAILABLE"
+        response_dict["available_str"] = (
+            "AVAILABLE" if response_dict["available"] == True else "NOT AVAILABLE"
+        )
 
     linke_re = r"https?:\/\/[^\s]+"
     currency_re = r"\d+(?:\.\d+)?"
@@ -83,7 +89,9 @@ def format_response(response_dict: dict) -> str:
 
     link_color = lambda s: f"{_c.DIM}{s}{_c.RESET}"
     currency_color = lambda s: f"{_c.YELLOW}{s}{_c.RESET}"
-    available_color = lambda s: f"{_c.GREEN}{s}{_c.RESET}" if s == "AVAILABLE" else f"{_c.RED}{s}{_c.RESET}"
+    available_color = lambda s: (
+        f"{_c.GREEN}{s}{_c.RESET}" if s == "AVAILABLE" else f"{_c.RED}{s}{_c.RESET}"
+    )
     brakets_color = lambda s: f"{_c.DIM}{s}{_c.RESET}"
     domain_color = lambda s: f"{_c.CYAN}{s}{_c.RESET}"
 
@@ -120,5 +128,8 @@ def strip_colors(s: str) -> str:
     """
     Remove ANSI color codes from a string for logging or plain output.
     """
-    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-    return ansi_escape.sub('', s)
+    ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+    return ansi_escape.sub("", s)
+
+
+class APIRequestError(Exception): ...

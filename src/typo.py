@@ -25,53 +25,60 @@ from . import utils as u
 from . import godaddy
 
 
-'https://medium.com/@georg.vetter.privat/how-to-build-a-typo-generator-from-scratch-in-python-ace485aac18b'
+"https://medium.com/@georg.vetter.privat/how-to-build-a-typo-generator-from-scratch-in-python-ace485aac18b"
+
 
 def _swap_letters(word: str) -> list[str]:
-    'swap every letter of a word pairwise. Example: Word, oWrd, Wrod, Wodr'
+    "swap every letter of a word pairwise. Example: Word, oWrd, Wrod, Wodr"
 
     swap_list = []
     for idx, letter in enumerate(word):
-        swap_list.append(word[:idx] + word[idx+1] + word[idx]+word[idx+2:])
-        if idx + 2 == len(word): break
+        swap_list.append(word[:idx] + word[idx + 1] + word[idx] + word[idx + 2 :])
+        if idx + 2 == len(word):
+            break
     return swap_list
 
-def _double_letter(word: str)-> list[str]:
-    'double every letter in the word: Example: WWord, Woord, Worrd, Wordd'
+
+def _double_letter(word: str) -> list[str]:
+    "double every letter in the word: Example: WWord, Woord, Worrd, Wordd"
 
     double_letter_list = []
     for idx, letter in enumerate(word):
         double_letter_list.append(word[:idx] + letter + word[idx:])
     return double_letter_list
 
+
 def _one_out(word: str) -> list[str]:
-    'Remove on every possible position one letter from the input word. Example: ord, Wrd, Wod, Wor'
+    "Remove on every possible position one letter from the input word. Example: ord, Wrd, Wod, Wor"
 
     one_out = []
     for idx in range(len(word)):
-        one_out.append(word[:idx] + word[idx+1:])
+        one_out.append(word[:idx] + word[idx + 1 :])
     return one_out
 
+
 def _replace_with_neighbor(word: str, neighbors: dict) -> list[str]:
-    'replace every letter in the word with every possible neighbor on a german keyboard'
+    "replace every letter in the word with every possible neighbor on a german keyboard"
 
     neighbor_replaced_words = []
     for idx, letter in enumerate(word):
         for neighbor in neighbors.get(letter.lower(), letter):
-            neighbor_replaced_words.append(word[:idx] + neighbor + word[idx+1:])
+            neighbor_replaced_words.append(word[:idx] + neighbor + word[idx + 1 :])
 
     return neighbor_replaced_words
 
-def _b4_after_with_neighbor(word: str, neighbors: dict)->list[str]:
-    'place before and after every letter in the word every possible neighbor on a german keyboard'
+
+def _b4_after_with_neighbor(word: str, neighbors: dict) -> list[str]:
+    "place before and after every letter in the word every possible neighbor on a german keyboard"
 
     neighbor_replaced_words = []
     for idx, letter in enumerate(word):
         for neighbor in neighbors.get(letter.lower(), letter):
             neighbor_replaced_words.append(word[:idx] + neighbor + word[idx:])
-            neighbor_replaced_words.append(word[:idx+1] + neighbor + word[idx+1:])
+            neighbor_replaced_words.append(word[: idx + 1] + neighbor + word[idx + 1 :])
 
     return neighbor_replaced_words
+
 
 # --- Cached availability, if wanted. ----------------------------+
 
@@ -81,23 +88,29 @@ if os.path.exists(c.CACHE_FILE):
 else:
     cache = {}
 
+
 def save_cache():
     with open(c.CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2)
 
+
 def _check_cached_availability(typo: str, tld: str) -> dict:
     domain = f"{typo}.{tld}"
-    
+
     if c.CACHED and domain in cache:
         return cache[domain]
 
     result = {}
     if c.CHECK_AVAILABILITY:
-        result.update(godaddy.check_domain_availability(domain))
-        cache[domain] = result 
-        if c.CACHED: save_cache()
+        api_response: dict = godaddy.check_domain_availability(domain)
+        if api_response.get("error", False):
+            raise u.APIRequestError(api_response)
+        result.update(api_response)
+        cache[domain] = result
+        if c.CACHED:
+            save_cache()
         time.sleep(1)
-    
+
     return result
 
 
