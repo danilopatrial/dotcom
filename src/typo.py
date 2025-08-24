@@ -80,40 +80,6 @@ def _b4_after_with_neighbor(word: str, neighbors: dict) -> list[str]:
     return neighbor_replaced_words
 
 
-# --- Cached availability, if wanted. ----------------------------+
-
-if os.path.exists(c.CACHE_FILE):
-    with open(c.CACHE_FILE, "r", encoding="utf-8") as f:
-        cache = json.load(f)
-else:
-    cache = {}
-
-
-def save_cache():
-    with open(c.CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(cache, f, indent=2)
-
-
-def _check_cached_availability(typo: str, tld: str) -> dict:
-    domain = f"{typo}.{tld}"
-
-    if c.CACHED and domain in cache:
-        return cache[domain]
-
-    result = {}
-    if c.CHECK_AVAILABILITY:
-        api_response: dict = godaddy.check_domain_availability(domain)
-        if api_response.get("error", False):
-            raise u.APIRequestError(api_response)
-        result.update(api_response)
-        cache[domain] = result
-        if c.CACHED:
-            save_cache()
-        time.sleep(1)
-
-    return result
-
-
 def generate_typos(domain: str, tld: str, filter: str | None) -> typing.Iterator[dict]:
     domain = domain.lower()
 
@@ -135,6 +101,6 @@ def generate_typos(domain: str, tld: str, filter: str | None) -> typing.Iterator
         group = key[0]  # A, B, C, D
         if filter is None or filter == group or filter == key:
             for typo in func(domain, **kwargs):
-                result = _check_cached_availability(typo, tld)
+                result = u.check_cached_availability(typo, tld)
                 result.update({"freq": f"[{key}]"})
                 yield result

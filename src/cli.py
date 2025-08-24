@@ -9,6 +9,7 @@ import json
 
 from . import const as c
 from . import utils as u
+from . import godaddy
 
 
 @click.group(invoke_without_command=True)
@@ -18,7 +19,12 @@ from . import utils as u
     is_flag=True,
     help="Enable verbose mode. Sets the stream log level to the global log level.",
 )
-@click.option("-s", "--silent", is_flag=True, help="Suppress all log output to stdout.")
+@click.option(
+    "-s",
+    "--silent",
+    is_flag=True,
+    help="Suppress all log output to stdout."
+    )
 @click.option(
     "-l",
     "--loglevel",
@@ -96,7 +102,7 @@ def maincli(
 
     if clear_cache:
         with open(c.CACHE_FILE, "w") as file:
-            json.dump({}, file)
+            json.dump({}, file, indent=4)
 
     c.VERBOSE = verbose
     c.LOGLEVEL = u.get_loglevl(loglevel)
@@ -126,9 +132,11 @@ def maincli(
     c.LOGGER.info(f"Test finished in: {round(time.time() - start, 2)}s")
 
 
-@maincli.command()
+@maincli.command(name="ls-domains")
 @click.option("-l", "--long", is_flag=True, help="Use a long listing format")
 def ls(long: bool) -> None:
+    """List information about registered domains.
+    Sort entries alphabetically if --sort is not specified."""
     raise NotImplementedError
 
 
@@ -154,21 +162,37 @@ def typo(domain: str, tld: str, filter: str | None) -> None:
     from .godaddy import godaddy_search_link
 
     for t in generate_typos(domain, tld, filter):
-        t.update({"link": godaddy_search_link(t.get("domain", None))})
+        u.final(t)
 
-        if c.OPEN_AVAILABLE_LINKS and t.get("available"):
-            webbrowser.open(t.get("link", "http://8.8.8.8/"))
 
-        string: str = u.format_response(t)
+@maincli.command()
+@click.option(
+    "--file",
+    "file_path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to a file containing domain names."
+)
+@click.argument("names", nargs=-1)
+@click.option(
+    "--tld",
+    default="com",
+    type=str,
+    show_default=True,
+    help="Domain TLD, exclusive dot. --tld=me"
+)
+def run(file_path: str | None, names: tuple[str], tld: str) -> None:
+    """Run through domain set list."""
+    if file_path:
+        click.echo(f"Reading domains from file: {file_path}")
+        with open(file_path, "r", encoding="utf-8") as f:
+            domains = [line.strip() for line in f if line.strip()]
+    else:
+        if not names:
+            click.echo("Error: You must provide either --file or names.", err=True)
+            raise click.Abort()
+        domains = list(names)
 
-        if c.GREP and c.GREP not in string:
-            continue
-
-        if t.get("available") == "AVAILABLE":
-            c.LOGGER.info(string)
-            if not c.VERBOSE:
-                if not c.SILENT: print(string)
-        else:
-            c.LOGGER.debug(string)
-            if not c.VERBOSE:
-                if not c.SILENT: print(string)
+    for domain in domains:
+        result: dict = {"domain": f"{domain}.{tld}"}
+        result.update(u.check_cached_availability(domain, tld))
+        u.final(result)

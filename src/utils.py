@@ -5,9 +5,13 @@ import os
 import pandas as pd
 import re
 import typing
+import json
+import time
 import sys
+import webbrowser
 
-from . import const as _c
+from . import const as c
+from . import godaddy
 
 
 def get_loglevl(loglevel_str: str) -> int:
@@ -27,7 +31,7 @@ def clear_stdout() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
 
-class _ColorFormatter(logging.Formatter):
+class colorFormatter(logging.Formatter):
     COLORS = {
         logging.DEBUG: "\033[0m",
         logging.INFO: "\033[0m",
@@ -50,14 +54,14 @@ class _ColorFormatter(logging.Formatter):
 def init_log_conf() -> None:
     os.makedirs("/home/apollo/Code/dotcom/log", exist_ok=True)
 
-    _c.LOGGER = logging.getLogger("main")
-    _c.LOGGER.setLevel(_c.LOGLEVEL)
+    c.LOGGER = logging.getLogger("main")
+    c.LOGGER.setLevel(c.LOGLEVEL)
 
-    if not _c.SILENT:
+    if not c.SILENT:
         stdout_handler = logging.StreamHandler()
-        stdout_handler.setLevel(_c.LOGLEVEL if _c.VERBOSE else logging.ERROR)
-        stdout_handler.setFormatter(_ColorFormatter())
-        _c.LOGGER.addHandler(stdout_handler)
+        stdout_handler.setLevel(c.LOGLEVEL if c.VERBOSE else logging.ERROR)
+        stdout_handler.setFormatter(colorFormatter())
+        c.LOGGER.addHandler(stdout_handler)
 
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -66,9 +70,9 @@ def init_log_conf() -> None:
     file_handler = logging.FileHandler(
         "/home/apollo/Code/dotcom/log/main.log", mode="w"
     )
-    file_handler.setLevel(_c.LOGLEVEL)
+    file_handler.setLevel(c.LOGLEVEL)
     file_handler.setFormatter(formatter)
-    _c.LOGGER.addHandler(file_handler)
+    c.LOGGER.addHandler(file_handler)
 
 
 def format_response(response_dict: dict) -> str:
@@ -87,15 +91,15 @@ def format_response(response_dict: dict) -> str:
     brakets_re = r"\[([a-zA-Z0-9-]+)\]"
     domain_re = r"\b[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+\b"
 
-    link_color = lambda s: f"{_c.DIM}{s}{_c.RESET}"
-    currency_color = lambda s: f"{_c.YELLOW}{s}{_c.RESET}"
-    available_color = lambda s: (
-        f"{_c.GREEN}{s}{_c.RESET}" if s == "AVAILABLE" else f"{_c.RED}{s}{_c.RESET}"
+    linkcolor = lambda s: f"{c.DIM}{s}{c.RESET}"
+    currencycolor = lambda s: f"{c.YELLOW}{s}{c.RESET}"
+    availablecolor = lambda s: (
+        f"{c.GREEN}{s}{c.RESET}" if s == "AVAILABLE" else f"{c.RED}{s}{c.RESET}"
     )
-    brakets_color = lambda s: f"{_c.DIM}{s}{_c.RESET}"
-    domain_color = lambda s: f"{_c.CYAN}{s}{_c.RESET}"
+    braketscolor = lambda s: f"{c.DIM}{s}{c.RESET}"
+    domaincolor = lambda s: f"{c.CYAN}{s}{c.RESET}"
 
-    link = raw_link = currency = AVAILABLE = brakets = domain = None
+    link = raw_link = currency = available = brakets = domain = None
     other_args = []
 
     for k, v in response_dict.items():
@@ -104,16 +108,16 @@ def format_response(response_dict: dict) -> str:
 
         if re.match(linke_re, v):
             raw_link = v
-            link = link_color(v)
+            link = linkcolor(v)
         elif re.match(currency_re, v) and v.isdigit():
             currency = f"US$ {int(v):,.2f}"
-            currency = currency_color(currency)
+            currency = currencycolor(currency)
         elif re.match(availabe_re, v):
-            available = available_color(v)
+            available = availablecolor(v)
         elif re.match(brakets_re, v):
-            brakets = brakets_color(v)
+            brakets = braketscolor(v)
         elif re.match(domain_re, v):
-            domain = domain_color(v)
+            domain = domaincolor(v)
         else:
             other_args.append(f"{k}={v}")
 
@@ -124,7 +128,7 @@ def format_response(response_dict: dict) -> str:
     return string
 
 
-def strip_colors(s: str) -> str:
+def stripcolors(s: str) -> str:
     """
     Remove ANSI color codes from a string for logging or plain output.
     """
@@ -133,3 +137,58 @@ def strip_colors(s: str) -> str:
 
 
 class APIRequestError(Exception): ...
+
+
+# --- Cached availability, if wanted. ----------------------------+
+
+if os.path.exists(c.CACHE_FILE):
+    with open(c.CACHE_FILE, "r", encoding="utf-8") as f:
+        cache = json.load(f)
+else:
+    cache = {}
+
+
+def _save_cache():
+    with open(c.CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=2)
+
+
+def check_cached_availability(domain: str, tld: str) -> dict:
+    domain = f"{domain}.{tld}"
+
+    if c.CACHED and domain in cache:
+        return cache[domain]
+
+    result = {"domain": domain}
+    if c.CHECK_AVAILABILITY:
+        api_response: dict = godaddy.check_domain_availability(domain)
+        if api_response.get("error", False):
+            raise APIRequestError(api_response)
+        result.update(api_response)
+        cache[domain] = result
+        if c.CACHED:
+            _save_cache()
+        time.sleep(1)
+
+    return result
+
+
+def final(t: dict) -> None:
+    t.update({"link": godaddy.godaddy_search_link(t.get("domain", None))})
+
+    if c.OPEN_AVAILABLE_LINKS and t.get("available"):
+        webbrowser.open(t.get("link", "http://8.8.8.8/"))
+
+    string: str = format_response(t)
+
+    if c.GREP and c.GREP not in string:
+        return
+
+    if t.get("available") == "AVAILABLE":
+        c.LOGGER.info(string)
+        if not c.VERBOSE and not c.SILENT:
+            print(string)
+    else:
+        c.LOGGER.debug(string)
+        if not c.VERBOSE and not c.SILENT:
+            print(string)
