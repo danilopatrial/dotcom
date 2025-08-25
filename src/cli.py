@@ -82,7 +82,12 @@ from . import godaddy
     help="Clear the local cache. Recommended for daily use since domain availability can change frequently.",
 )
 @click.option(
-    "-t", "--testrun", is_flag=True, help="[DEBUG] Run internal test functions."
+    "--ote",
+    is_flag=True,
+    help="[DEBUG] Enable OTE API Usage. If ote key set on .env."
+)
+@click.option(
+    "--testrun", is_flag=True, help="[DEBUG] Run internal test functions."
 )
 @click.version_option("alpha", prog_name="domain finder")
 def maincli(
@@ -196,3 +201,9 @@ def run(file_path: str | None, names: tuple[str], tld: str) -> None:
         result: dict = {"domain": f"{domain}.{tld}"}
         result.update(u.check_cached_availability(domain, tld))
         u.final(result)
+
+
+@maincli.command()
+def evaluate() -> None:
+    """Evaluate domains using implemented algorithm (No API access)"""
+    raise NotImplementedError
